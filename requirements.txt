@@ -1,6 +1,6 @@
-opencv-python-headless
-numpy
-tensorflow>=2.11
-mtcnn
-pandas
-streamlit
+opencv-python-headless>=4.5.5.64
+numpy<2.0,>=1.23.5
+tensorflow>=2.11,<2.17
+mtcnn>=0.1.1
+pandas>=1.5.3
+streamlit>=1.22.0
