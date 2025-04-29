@@ -1,6 +1,6 @@
 opencv-python-headless
 numpy
-tensorflow
+tensorflow>=2.11
 mtcnn
 pandas
 streamlit
