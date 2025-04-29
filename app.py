@@ -303,35 +303,48 @@ def view_registered_people():
     st.subheader("Registered People")
     
     embedding_database = load_embedding_database()
-    if embedding_database:
-        people = list(embedding_database.keys())
-        
-        for person in people:
-            col1, col2 = st.columns([1, 3])
-            
-            # Display one of the person's images if available
-            person_path = os.path.join(face_database_path, person)
-            if os.path.exists(person_path) and os.listdir(person_path):
-                sample_img = os.path.join(person_path, os.listdir(person_path)[0])
-                col1.image(sample_img, caption=person, width=224)
-            else:
-                col1.write(person)
-            
-            # Add a delete button
-            if col2.button(f"Delete {person}", key=f"delete_{person}"):
-                # Remove from embedding database
-                del embedding_database[person]
-                np.save(embedding_database_file, embedding_database)
-                
-                # Remove image directory
-                if os.path.exists(os.path.join(face_database_path, person)):
-                    shutil.rmtree(os.path.join(face_database_path, person))
-                
-                st.success(f"Deleted {person} from the database")
-                st.rerun()
-    else:
+    
+    if not embedding_database:
         st.info("No people registered in the database")
-
+        return
+    
+    people = list(embedding_database.keys())
+    
+    for person in people:
+        col1, col2 = st.columns([3, 1])
+        
+        # Display person's name
+        col1.write(person)
+        
+        # Add a delete button with confirmation
+        if col2.button(f"Delete", key=f"delete_{person}"):
+            # Store deletion confirmation in session state
+            st.session_state[f"confirm_delete_{person}"] = True
+        
+        # Show confirmation dialog
+        if st.session_state.get(f"confirm_delete_{person}", False):
+            st.warning(f"Are you sure you want to delete {person}?")
+            confirm_col1, confirm_col2 = st.columns(2)
+            if confirm_col1.button("Yes", key=f"confirm_yes_{person}"):
+                try:
+                    # Remove from embedding database
+                    del embedding_database[person]
+                    np.save(embedding_database_file, embedding_database)
+                    
+                    # Remove image directory
+                    person_path = os.path.join(face_database_path, person)
+                    if os.path.exists(person_path):
+                        shutil.rmtree(person_path)
+                    
+                    st.success(f"Deleted {person} from the database")
+                    # Clear confirmation state
+                    st.session_state[f"confirm_delete_{person}"] = False
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error deleting {person}: {e}")
+            if confirm_col2.button("No", key=f"confirm_no_{person}"):
+                st.session_state[f"confirm_delete_{person}"] = False
+                
 # Main app function
 def main():
     # Check if the base network is loaded
