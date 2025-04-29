@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
+from tensorflow.keras.applications.resnet50 import preprocess_input
 from mtcnn import MTCNN
 import pandas as pd
 from datetime import datetime
@@ -54,12 +55,14 @@ def load_embedding_database():
 def load_and_preprocess_image(img_path: str) -> np.ndarray:
     img = cv2.imread(img_path)
     if img is None:
-        return np.zeros((100, 100, 3), dtype=np.float32)
+        return np.zeros((224, 224, 3), dtype=np.float32)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = img.astype(np.float32) / 255.0
+    img = cv2.resize(img, (224, 224))
+    # Use ResNet50 preprocessing instead of simple normalization
+    img = preprocess_input(img)
     return img
 
-def detect_and_crop_face(image: np.ndarray, size: tuple = (100, 100)) -> Optional[np.ndarray]:
+def detect_and_crop_face(image: np.ndarray, size: tuple = (224, 224)) -> Optional[np.ndarray]:
     # Ensure image is uint8 for cvtColor
     if image.dtype != np.uint8:
         if image.max() <= 1.0:  # Image is normalized [0,1]
@@ -78,7 +81,9 @@ def detect_and_crop_face(image: np.ndarray, size: tuple = (100, 100)) -> Optiona
     if face_img.size == 0:  # Check for empty crop
         return None
     face_img = cv2.resize(face_img, size)
-    return face_img.astype(np.float32) / 255.0
+    # Use ResNet50 preprocessing
+    face_img = preprocess_input(face_img)
+    return face_img
 
 def compute_cosine_distance(emb1: np.ndarray, emb2: np.ndarray) -> float:
     dot_product = np.sum(emb1 * emb2, axis=-1)
@@ -131,8 +136,13 @@ def crop_and_save_faces(images, person_name: str, output_dir: str = face_databas
         if face_img is None:
             st.warning(f"No face detected in image {i+1}")
             continue
+        
+        # Convert back from preprocessed to RGB for saving
+        # Since preprocess_input transforms the image, we need to save a viewable version
+        # We'll convert to uint8 for saving
+        face_img_display = (face_img + 127.5).astype(np.uint8)  # Approximate reverse of preprocessing
         output_img_path = os.path.join(person_output_path, f"{person_name}_{i+1}.jpg")
-        cv2.imwrite(output_img_path, cv2.cvtColor(face_img * 255, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(output_img_path, cv2.cvtColor(face_img_display, cv2.COLOR_RGB2BGR))
         st.success(f"Saved cropped image: {output_img_path}")
         valid_images = True
     return valid_images
@@ -303,7 +313,7 @@ def view_registered_people():
             person_path = os.path.join(face_database_path, person)
             if os.path.exists(person_path) and os.listdir(person_path):
                 sample_img = os.path.join(person_path, os.listdir(person_path)[0])
-                col1.image(sample_img, caption=person, width=100)
+                col1.image(sample_img, caption=person, width=224)
             else:
                 col1.write(person)
             
@@ -418,7 +428,7 @@ def main():
                     
                     for i, col in enumerate(cols):
                         if i < len(st.session_state.captured_images):
-                            col.image(st.session_state.captured_images[i], width=100)
+                            col.image(st.session_state.captured_images[i], width=224)
                 
                 # Process images when enough are captured
                 if len(st.session_state.captured_images) >= 5 and st.button("Register Person"):
